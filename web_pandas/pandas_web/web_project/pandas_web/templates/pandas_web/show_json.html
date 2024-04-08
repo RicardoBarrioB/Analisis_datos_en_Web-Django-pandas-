@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>JSON Data</title>
+</head>
+<body>
+    <h1>{{ dataset.name }}</h1>
+    <p>{{ dataset.description }}</p>
+    <p>Uploaded by: {{ dataset.uploaded_by.username }}</p>
+    <p>Upload Date: {{ dataset.upload_date }}</p>
+
+    <h2>JSON Data</h2>
+    <pre>{{ json_data|json_script:"json_data" }}</pre>
+</body>
+</html>

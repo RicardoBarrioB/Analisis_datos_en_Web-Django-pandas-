@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+{% load static %}
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Formulario para cargar archivo JSON</title>
+    <link rel="stylesheet" href="{% static 'pandas_web/styles.css' %}">
+</head>
+<script>
+    window.onload = function(){
+        var inputFile = document.querySelector('input[name="json_file"]');
+        inputFile.addEventListener('change', function() {
+            var json_file = event.target.files[0];
+            if (json_file) {
+                var formData = new FormData();
+                formData.append('json_file', json_file);
+                formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+                fetch('{% url 'create_data_set' %}', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    var columnsSelect = document.querySelector('#id_columns');
+                    columnsSelect.innerHTML = '';
+                    data.columns_choices.forEach(function(column) {
+                        var checkbox = document.createElement('input');
+                        checkbox.type = 'checkbox';
+                        checkbox.name = 'columns';
+                        checkbox.value = column;
+
+                        var label = document.createElement('label');
+                        label.appendChild(checkbox);
+                        label.appendChild(document.createTextNode(column));
+                        columnsSelect.appendChild(label);
+                        columnsSelect.appendChild(document.createElement('br'));
+                    });
+                })
+                .catch(error => {
+                    console.error('Error al procesar el archivo:', error);
+                });
+            };
+        });
+    };
+
+</script>
+<body>
+    <h1>Formulario para cargar archivo JSON</h1>
+    <form id="uploadForm" method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        {{ form.as_p }}
+    <button type="submit">Enviar Archivo</button>
+        <a href="{% url 'data_sets' %}">Cancelar</a>
+    </form>
+</body>
+</html>

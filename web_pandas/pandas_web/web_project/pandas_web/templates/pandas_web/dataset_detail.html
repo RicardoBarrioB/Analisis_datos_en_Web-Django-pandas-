@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+{% load static %}
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DataSet Detail</title>
+    <link rel="stylesheet" type="text/css" href="{% static 'pandas_web/styles.css' %}">
+</head>
+<body>
+    <h1>DataSet Detail</h1>
+    <table>
+        <tr>
+            <th>Name</th>
+            <td>{{ dataset.name }}</td>
+        </tr>
+        <tr>
+            <th>Upload Date</th>
+            <td>{{ dataset.upload_date }}</td>
+        </tr>
+        <tr>
+            <th>Uploaded By</th>
+            <td>{{ dataset.uploaded_by }}</td>
+        </tr>
+        <!-- Include other fields as needed -->
+    </table>
+    <a href="{% url 'data_sets' %}">Back to DataSet List</a>
+</body>
+</html>

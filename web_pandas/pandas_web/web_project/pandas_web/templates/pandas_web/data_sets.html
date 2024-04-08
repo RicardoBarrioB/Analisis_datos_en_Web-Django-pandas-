@@ -1,0 +1,21 @@
+
+<!DOCTYPE html>
+
+{% load static %}
+
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Data Sets</title>
+    <link rel="stylesheet" type="text/css" href="{% static 'pandas_web/styles.css' %}">
+</head>
+<body>
+    <h1>Data Sets</h1>
+    <ul>
+        {% for dataset in datasets %}
+            <li>{{ dataset.name }}</li>
+        {% endfor %}
+    </ul>
+</body>
+</html>
