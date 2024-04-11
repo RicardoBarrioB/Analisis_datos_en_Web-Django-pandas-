@@ -163,15 +163,43 @@ class AnalyzeDataView(DetailView):
 
     def post(self, request, *args, **kwargs):
         dataset = self.get_object()
+        print("Datos POST recibidos:", request.POST)
         selected_columns = request.POST.getlist('columnas[]')  # Obtener las selecciones de los checkboxes
+        print("Columnas seleccionadas:", selected_columns)
 
-        # Aquí puedes realizar el procesamiento necesario de las selecciones de las columnas
-        # y generar la gráfica con Matplotlib
-        # Por ahora, solo se genera una gráfica de ejemplo
-        plt.plot([1, 2, 3, 4], [10, 20, 25, 30])
-        plt.xlabel('Eje X')
-        plt.ylabel('Eje Y')
-        plt.title('Ejemplo de Gráfica')
+        if len(selected_columns) < 2:
+            # Si no hay suficientes columnas seleccionadas, devolver un error
+            return JsonResponse({'error': 'Debes seleccionar al menos dos columnas.'}, status=400)
+
+        # Obtener los datos del conjunto de datos
+        data_points = DataPoint.objects.filter(column__data_set=dataset)
+
+        # Crear un diccionario para almacenar los datos de las columnas seleccionadas
+        data = {}
+        for column_name in selected_columns:
+            data[column_name] = []
+
+        # Llenar el diccionario con los valores de las columnas seleccionadas
+        for data_point in data_points:
+            column_name = data_point.column.name
+            if column_name in selected_columns:
+                data[column_name].append(data_point.value)
+
+        # Crear un DataFrame de pandas con los datos recolectados
+        df = pd.DataFrame(data)
+
+        # Convertir las columnas seleccionadas a tipos numéricos
+        df[selected_columns] = df[selected_columns].apply(pd.to_numeric, errors='coerce')
+
+        # Calcular la media
+        grouped_data = df.groupby(selected_columns[0]).mean()
+
+
+        # Generar la gráfica
+        plt.plot(grouped_data.index, grouped_data[selected_columns[1]])
+        plt.xlabel(selected_columns[0])
+        plt.ylabel(selected_columns[1])
+        plt.title('Gráfica')
 
         # Guardar la gráfica como una imagen
         imagen_ruta = os.path.join(settings.MEDIA_ROOT, 'grafica.png')
