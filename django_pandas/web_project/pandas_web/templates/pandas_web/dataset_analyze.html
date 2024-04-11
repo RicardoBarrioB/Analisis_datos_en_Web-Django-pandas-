@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Análisis de Datos</title>
+    <style>
+        body {
+            text-align: center;
+        }
+
+        h3 {
+            text-align: left; /* Alinea los encabezados h3 a la izquierda */
+        }
+
+        table {
+            border-collapse: collapse;
+        }
+
+        th, td {
+            border: 1px solid #dddddd;
+            text-align: left;
+            padding: 8px;
+            white-space: nowrap; /* Evita que el contenido se divida en varias líneas */
+        }
+
+        th {
+            background-color: #f2f2f2;
+        }
+
+        .checkbox-container {
+            display: flex;
+            justify-content: flex-end;
+            align-items: center; /* Centra verticalmente los checkboxes */
+        }
+
+        .checkbox-container input[type="checkbox"] {
+            margin-left: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Análisis de Datos</h1>
+
+    <h2>Detalles del Dataset</h2>
+    <p><strong>Nombre del Dataset:</strong> {{ dataset.name }}</p>
+    <p><strong>Subido por:</strong> {{ dataset.uploaded_by }}</p>
+    <br>
+    <h3>Columnas del Dataset</h3>
+    <table id="datasetTable">
+        <tbody>
+            {% for column in dataset.datacolumn_set.all %}
+            <tr>
+                <td>{{ column.name }} ({{ column.data_type }})</td>
+                <td class="checkbox-container">
+                    <input type="checkbox">
+                    <input type="checkbox">
+                    <input type="checkbox">
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+</body>
+</html>
