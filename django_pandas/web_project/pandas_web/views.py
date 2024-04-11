@@ -10,7 +10,9 @@ from django.db import transaction
 from .forms import DataSetForm, DataColumnForm, DataPointForm
 import json
 from django.http import JsonResponse, HttpResponseBadRequest
-
+import matplotlib.pyplot as plt
+import os
+from django.conf import settings
 
 class DataSetListView(ListView):
     model = DataSet
@@ -158,3 +160,23 @@ class AnalyzeDataView(DetailView):
         dataset = self.get_object()
         context['columns'] = dataset.datacolumn_set.all()
         return context
+
+    def post(self, request, *args, **kwargs):
+        dataset = self.get_object()
+        selected_columns = request.POST.getlist('columnas[]')  # Obtener las selecciones de los checkboxes
+
+        # Aquí puedes realizar el procesamiento necesario de las selecciones de las columnas
+        # y generar la gráfica con Matplotlib
+        # Por ahora, solo se genera una gráfica de ejemplo
+        plt.plot([1, 2, 3, 4], [10, 20, 25, 30])
+        plt.xlabel('Eje X')
+        plt.ylabel('Eje Y')
+        plt.title('Ejemplo de Gráfica')
+
+        # Guardar la gráfica como una imagen
+        imagen_ruta = os.path.join(settings.MEDIA_ROOT, 'grafica.png')
+        plt.savefig(imagen_ruta)
+        plt.close()  # Cerrar la figura para liberar recursos
+
+        # Devolver la ruta de la imagen como parte de la respuesta JSON
+        return JsonResponse({'imagen_ruta': '/media/grafica.png'})
