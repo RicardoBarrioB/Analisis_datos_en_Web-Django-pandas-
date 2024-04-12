@@ -13,6 +13,10 @@ from django.http import JsonResponse, HttpResponseBadRequest
 import matplotlib.pyplot as plt
 import os
 from django.conf import settings
+import threading
+from threading import Semaphore
+import concurrent.futures
+
 
 class DataSetListView(ListView):
     model = DataSet
@@ -57,26 +61,38 @@ class DataSetCreateView(LoginRequiredMixin, CreateView):
         else:
             return super().post(request, *args, **kwargs)
 
+    lock = threading.Lock()
+    max_threads = 10  # Número máximo de hilos activos simultáneamente
+    batch_size = 100  # Tamaño del lote de puntos de datos a procesar
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.semaphore = Semaphore(value=self.max_threads)
+
+    def process_data_points(self, data_points):
+        try:
+            with transaction.atomic():
+                DataPoint.objects.bulk_create(data_points)
+        except Exception as e:
+            print(f"Error al guardar los puntos de datos: {e}")
+
     @transaction.atomic
     def form_valid(self, form):
         form.instance.uploaded_by = self.request.user
         dataset = form.save(commit=False)
         dataset.save()
         json_file = self.request.FILES['json_file']
-        print("Nombre del archivo enviado:", json_file.name,"xxxx")
+        threads = []
+
         try:
             json_file.seek(0)
             json_data = json.load(json_file)
         except json.JSONDecodeError as e:
-            print (e)
             return HttpResponseBadRequest("Error al cargar el JSON: {}".format(e))
 
         if 'columns' in self.request.POST:
-            print("primero:")
             selected_columns = self.request.POST.getlist('columns')
-            print("imprimo:", selected_columns)
         else:
-            print("La clave 'columns' no está presente en request.POST")
             return self.form_invalid(form)
 
         try:
@@ -87,7 +103,6 @@ class DataSetCreateView(LoginRequiredMixin, CreateView):
 
         for column_name in selected_columns:
             column_data = df[column_name]
-            print(column_name, column_data.dtype.name)
             data_column_form = DataColumnForm({
                 'name': column_name,
                 'data_type': column_data.dtype.name,
@@ -96,19 +111,31 @@ class DataSetCreateView(LoginRequiredMixin, CreateView):
             if data_column_form.is_valid():
                 data_column = data_column_form.save(commit=False)
                 data_column.save()
-            else:
-                print("¡Error al guardar la columna {}!".format(column_name))
 
-            for value in column_data.tolist():
-                data_point_form = DataPointForm({
-                    'column': data_column,
-                    'value': value
-                })
-                if data_point_form.is_valid():
-                    data_point = data_point_form.save(commit=False)
-                    data_point.save()
-                else:
-                    print("¡Error al guardar el dato en la columna {}!".format(column_name))
+                # Procesar los puntos de datos en lotes
+                data_points = []
+                for value in column_data.tolist():
+                    data_points.append(DataPoint(column=data_column, value=value))
+                    if len(data_points) >= self.batch_size:
+                        self.semaphore.acquire()
+                        thread = threading.Thread(target=self.process_data_points, args=(data_points,))
+                        thread.start()
+                        threads.append(thread)
+                        data_points = []
+
+                # Procesar los puntos de datos restantes en el último lote
+                if data_points:
+                    self.semaphore.acquire()
+                    thread = threading.Thread(target=self.process_data_points, args=(data_points,))
+                    thread.start()
+                    threads.append(thread)
+
+            else:
+                print(f"¡Error al guardar la columna {column_name}!")
+
+        # Esperar a que todos los hilos terminen antes de continuar
+        for thread in threads:
+            thread.join()
 
         return super().form_valid(form)
 
@@ -161,6 +188,11 @@ class AnalyzeDataView(DetailView):
         context['columns'] = dataset.datacolumn_set.all()
         return context
 
+    def process_data_point(self, data_point, selected_columns, data):
+        column_name = data_point.column.name
+        if column_name in selected_columns:
+            data[column_name].append(data_point.value)
+
     def post(self, request, *args, **kwargs):
         dataset = self.get_object()
         print("Datos POST recibidos:", request.POST)
@@ -175,15 +207,14 @@ class AnalyzeDataView(DetailView):
         data_points = DataPoint.objects.filter(column__data_set=dataset)
 
         # Crear un diccionario para almacenar los datos de las columnas seleccionadas
-        data = {}
-        for column_name in selected_columns:
-            data[column_name] = []
+        data = {column_name: [] for column_name in selected_columns}
 
         # Llenar el diccionario con los valores de las columnas seleccionadas
-        for data_point in data_points:
-            column_name = data_point.column.name
-            if column_name in selected_columns:
-                data[column_name].append(data_point.value)
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            futures = []
+            for data_point in data_points:
+                futures.append(executor.submit(self.process_data_point, data_point, selected_columns, data))
+            concurrent.futures.wait(futures)
 
         # Crear un DataFrame de pandas con los datos recolectados
         df = pd.DataFrame(data)
@@ -193,7 +224,6 @@ class AnalyzeDataView(DetailView):
 
         # Calcular la media
         grouped_data = df.groupby(selected_columns[0]).mean()
-
 
         # Generar la gráfica
         plt.plot(grouped_data.index, grouped_data[selected_columns[1]])
