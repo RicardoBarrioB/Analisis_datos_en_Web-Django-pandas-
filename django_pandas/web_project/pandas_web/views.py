@@ -16,7 +16,9 @@ from django.conf import settings
 import threading
 from threading import Semaphore
 import concurrent.futures
-
+import matplotlib
+matplotlib.use('Agg')
+import time
 
 class DataSetListView(ListView):
     model = DataSet
@@ -203,35 +205,35 @@ class AnalyzeDataView(DetailView):
             # Si no hay suficientes columnas seleccionadas, devolver un error
             return JsonResponse({'error': 'Debes seleccionar al menos dos columnas.'}, status=400)
 
-        # Obtener los datos del conjunto de datos
+
         data_points = DataPoint.objects.filter(column__data_set=dataset)
 
-        # Crear un diccionario para almacenar los datos de las columnas seleccionadas
+
         data = {column_name: [] for column_name in selected_columns}
 
         # Llenar el diccionario con los valores de las columnas seleccionadas
-        with concurrent.futures.ThreadPoolExecutor() as executor:
+        start_time = time.time()
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=14) as executor:
             futures = []
             for data_point in data_points:
                 futures.append(executor.submit(self.process_data_point, data_point, selected_columns, data))
             concurrent.futures.wait(futures)
 
-        # Crear un DataFrame de pandas con los datos recolectados
+        duration = time.time() - start_time
+        print(duration)
         df = pd.DataFrame(data)
 
         # Convertir las columnas seleccionadas a tipos numéricos
         df[selected_columns] = df[selected_columns].apply(pd.to_numeric, errors='coerce')
 
-        # Calcular la media
         grouped_data = df.groupby(selected_columns[0]).mean()
 
-        # Generar la gráfica
         plt.plot(grouped_data.index, grouped_data[selected_columns[1]])
         plt.xlabel(selected_columns[0])
         plt.ylabel(selected_columns[1])
         plt.title('Gráfica')
 
-        # Guardar la gráfica como una imagen
         imagen_ruta = os.path.join(settings.MEDIA_ROOT, 'grafica.png')
         plt.savefig(imagen_ruta)
         plt.close()  # Cerrar la figura para liberar recursos
