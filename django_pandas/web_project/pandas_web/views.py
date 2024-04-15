@@ -182,19 +182,26 @@ class AnalyzeDataView(DetailView):
     def post(self, request, *args, **kwargs):
         dataset = self.get_object()
         print("Datos POST recibidos:", request.POST)
-        selected_columns = request.POST.getlist('columnas[]')  # Obtener las selecciones de los checkboxes
-        print("Columnas seleccionadas:", selected_columns)
+        columnaX = request.POST.get('columna_x')  # Obtener el valor de la columna X seleccionada
+        columnaY = request.POST.get('columna_y')  # Obtener el valor de la columna Y seleccionada
 
-        if len(selected_columns) < 2:
-            # Si no hay suficientes columnas seleccionadas, devolver un error
-            return JsonResponse({'error': 'Debes seleccionar al menos dos columnas.'}, status=400)
+        print("Columna X seleccionada:", columnaX)
+        print("Columna Y seleccionada:", columnaY)
+
+        if not columnaX or not columnaY:
+            # Si no se seleccionaron ambas columnas, devolver un error
+            return JsonResponse({'error': 'Por favor, selecciona una columna para Eje X y Eje Y.'}, status=400)
+
+        # Definir eje_x y eje_y con los valores de las columnas seleccionadas
+        eje_x = columnaX
+        eje_y = columnaY
 
         # Obtener los datos del conjunto de datos
-        relevant_columns = DataColumn.objects.filter(name__in=selected_columns, data_set=dataset)
+        relevant_columns = DataColumn.objects.filter(name__in=[eje_x, eje_y], data_set=dataset)
         data_points = DataPoint.objects.filter(column__in=relevant_columns).prefetch_related('column')
 
         # Crear un diccionario para almacenar los datos de las columnas seleccionadas
-        data = {column_name: [] for column_name in selected_columns}
+        data = {eje_x: [], eje_y: []}
 
         start_time = time.time()
 
@@ -202,26 +209,24 @@ class AnalyzeDataView(DetailView):
         with concurrent.futures.ThreadPoolExecutor(max_workers=14) as executor:
             futures = []
             for data_point in data_points:
-                futures.append(executor.submit(self.process_data_point, data_point, selected_columns, data))
+                futures.append(executor.submit(self.process_data_point, data_point, [eje_x, eje_y], data))
             concurrent.futures.wait(futures)
 
         duration = time.time() - start_time
         print(duration)
         df = pd.DataFrame(data)
 
-        # Crear un DataFrame de pandas con los datos recolectados
-        df = pd.DataFrame(data)
-
         # Convertir las columnas seleccionadas a tipos numéricos
-        df[selected_columns] = df[selected_columns].apply(pd.to_numeric, errors='coerce')
+        df[[eje_x, eje_y]] = df[[eje_x, eje_y]].apply(pd.to_numeric, errors='coerce')
+
 
         # Calcular la media
-        grouped_data = df.groupby(selected_columns[0]).mean()
+        grouped_data = df.groupby(eje_x).mean()
 
         # Generar la gráfica
-        plt.plot(grouped_data.index, grouped_data[selected_columns[1]])
-        plt.xlabel(selected_columns[0])
-        plt.ylabel(selected_columns[1])
+        plt.plot(grouped_data.index, grouped_data[eje_y])
+        plt.xlabel(eje_x)
+        plt.ylabel(eje_y)
         plt.title('Gráfica')
 
         # Guardar la gráfica como una imagen
@@ -231,3 +236,4 @@ class AnalyzeDataView(DetailView):
 
         # Devolver la ruta de la imagen como parte de la respuesta JSON
         return JsonResponse({'imagen_ruta': '/media/grafica.png'})
+

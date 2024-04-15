@@ -27,26 +27,14 @@
             background-color: #f2f2f2;
         }
 
-        .checkbox-container {
+        .radio-container {
             display: flex;
-            justify-content: flex-end;
-            align-items: center; /* Centra verticalmente los checkboxes */
+            justify-content: center; /* Centra horizontalmente los botones de opción */
+            align-items: center; /* Centra verticalmente los botones de opción */
         }
 
-        .checkbox-container input[type="checkbox"] {
-            margin-left: 5px;
-        }
-
-        .checkbox-container {
-            display: flex;
-            justify-content: space-between; /* Distribuye el espacio entre los checkboxes */
-            align-items: center; /* Centra verticalmente los checkboxes */
-            width: 100%; /* Asegura que los checkboxes ocupen todo el ancho de la celda */
-        }
-
-        .checkbox-container input[type="checkbox"] {
-            flex: 1; /* Hace que los checkboxes ocupen el espacio disponible */
-            margin-left: 5px;
+        .radio-container input[type="radio"] {
+            margin: 0 5px; /* Espacio entre los botones de opción */
         }
 
         #chartContainer {
@@ -74,16 +62,16 @@
         <thead>
             <tr>
                 <th>Columnas</th> <!-- Etiqueta para las columnas de datos -->
-                <th>Eje X / Eje Y</th>
+                <th>EjeX / EjeY</th>
             </tr>
         </thead>
         <tbody>
            {% for column in dataset.datacolumn_set.all %}
             <tr>
                 <td>{{ column.name }} ({{ column.data_type }})</td>
-                <td class="checkbox-container">
-                    <input type="checkbox" name="columnas[]" value="{{ column.name }}">
-                    <input type="checkbox" name="columnas[]" value="{{ column.name }}">
+                <td class="radio-container">
+                    <input type="radio" name="columna_x" value="{{ column.name }}"> <!-- Usamos el nombre de la columna como valor -->
+                    <input type="radio" name="columna_y" value="{{ column.name }}"> <!-- Usamos el nombre de la columna como valor -->
                 </td>
             </tr>
             {% endfor %}
@@ -101,19 +89,22 @@
         $(document).ready(function() {
             // Manejar el clic en el botón "Analizar"
             $('#analyzeButton').click(function() {
-                var selectedColumns = [];
-                // Obtener las columnas seleccionadas
-                $('input[name="columnas[]"]:checked').each(function() {
-                    selectedColumns.push($(this).val());
-                });
+                var columnaX = $('input[name="columna_x"]:checked').val(); // Obtener el valor de la columna X seleccionada
+                var columnaY = $('input[name="columna_y"]:checked').val(); // Obtener el valor de la columna Y seleccionada
+
+                if (!columnaX || !columnaY) {
+                    alert('Por favor, seleccione una columna para Eje X y Eje Y.');
+                    return;
+                }
 
                 // Enviar la solicitud AJAX al backend
                 $.ajax({
                     type: 'POST',
-                    url: '{% url "analyze_data" dataset.pk %}',  //
+                    url: '{% url "analyze_data" dataset.pk %}',
                     data: {
                         'csrfmiddlewaretoken': '{{ csrf_token }}',
-                        'columnas[]': selectedColumns
+                        'columna_x': columnaX,
+                        'columna_y': columnaY
                     },
                     dataType: 'json',
                     success: function(response) {
@@ -130,5 +121,4 @@
     </script>
 </body>
 </html>
-
 
