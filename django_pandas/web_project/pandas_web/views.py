@@ -63,9 +63,7 @@ class DataSetCreateView(LoginRequiredMixin, CreateView):
         else:
             return super().post(request, *args, **kwargs)
 
-    lock = threading.Lock()
-    max_threads = 10  # Número máximo de hilos activos simultáneamente
-    batch_size = 100  # Tamaño del lote de puntos de datos a procesar
+    max_threads = 5  # Número máximo de hilos permitidos
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -77,8 +75,9 @@ class DataSetCreateView(LoginRequiredMixin, CreateView):
                 DataPoint.objects.bulk_create(data_points)
         except Exception as e:
             print(f"Error al guardar los puntos de datos: {e}")
+        finally:
+            self.semaphore.release()
 
-    @transaction.atomic
     def form_valid(self, form):
         form.instance.uploaded_by = self.request.user
         dataset = form.save(commit=False)
@@ -118,28 +117,19 @@ class DataSetCreateView(LoginRequiredMixin, CreateView):
                 data_points = []
                 for value in column_data.tolist():
                     data_points.append(DataPoint(column=data_column, value=value))
-                    if len(data_points) >= self.batch_size:
-                        self.semaphore.acquire()
-                        thread = threading.Thread(target=self.process_data_points, args=(data_points,))
-                        thread.start()
-                        threads.append(thread)
-                        data_points = []
 
-                # Procesar los puntos de datos restantes en el último lote
-                if data_points:
-                    self.semaphore.acquire()
-                    thread = threading.Thread(target=self.process_data_points, args=(data_points,))
-                    thread.start()
-                    threads.append(thread)
-
-            else:
-                print(f"¡Error al guardar la columna {column_name}!")
+                # Adquirir el semáforo antes de iniciar un hilo
+                self.semaphore.acquire()
+                thread = threading.Thread(target=self.process_data_points, args=(data_points,))
+                thread.start()
+                threads.append(thread)
 
         # Esperar a que todos los hilos terminen antes de continuar
         for thread in threads:
             thread.join()
 
         return super().form_valid(form)
+
 
 class DataSetDetailView(DetailView):
     model = DataSet
@@ -184,12 +174,6 @@ class AnalyzeDataView(DetailView):
     template_name = 'pandas_web/dataset_analyze.html'
     context_object_name = 'dataset'
 
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        dataset = self.get_object()
-        context['columns'] = dataset.datacolumn_set.all()
-        return context
-
     def process_data_point(self, data_point, selected_columns, data):
         column_name = data_point.column.name
         if column_name in selected_columns:
@@ -205,15 +189,16 @@ class AnalyzeDataView(DetailView):
             # Si no hay suficientes columnas seleccionadas, devolver un error
             return JsonResponse({'error': 'Debes seleccionar al menos dos columnas.'}, status=400)
 
+        # Obtener los datos del conjunto de datos
+        relevant_columns = DataColumn.objects.filter(name__in=selected_columns, data_set=dataset)
+        data_points = DataPoint.objects.filter(column__in=relevant_columns).prefetch_related('column')
 
-        data_points = DataPoint.objects.filter(column__data_set=dataset)
-
-
+        # Crear un diccionario para almacenar los datos de las columnas seleccionadas
         data = {column_name: [] for column_name in selected_columns}
 
-        # Llenar el diccionario con los valores de las columnas seleccionadas
         start_time = time.time()
 
+        # Procesar los datos en paralelo
         with concurrent.futures.ThreadPoolExecutor(max_workers=14) as executor:
             futures = []
             for data_point in data_points:
@@ -224,16 +209,22 @@ class AnalyzeDataView(DetailView):
         print(duration)
         df = pd.DataFrame(data)
 
+        # Crear un DataFrame de pandas con los datos recolectados
+        df = pd.DataFrame(data)
+
         # Convertir las columnas seleccionadas a tipos numéricos
         df[selected_columns] = df[selected_columns].apply(pd.to_numeric, errors='coerce')
 
+        # Calcular la media
         grouped_data = df.groupby(selected_columns[0]).mean()
 
+        # Generar la gráfica
         plt.plot(grouped_data.index, grouped_data[selected_columns[1]])
         plt.xlabel(selected_columns[0])
         plt.ylabel(selected_columns[1])
         plt.title('Gráfica')
 
+        # Guardar la gráfica como una imagen
         imagen_ruta = os.path.join(settings.MEDIA_ROOT, 'grafica.png')
         plt.savefig(imagen_ruta)
         plt.close()  # Cerrar la figura para liberar recursos
