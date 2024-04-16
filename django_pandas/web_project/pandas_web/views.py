@@ -252,5 +252,5 @@ class AnalyzeDataView(DetailView):
         plt.close()  # Cerrar la figura para liberar recursos
 
         # Devolver la ruta de la imagen como parte de la respuesta JSON
-        return JsonResponse({'imagen_ruta': '/media/grafica.png'})
+        return JsonResponse({'imagen_ruta': '/graphics/grafica.png'})
 
