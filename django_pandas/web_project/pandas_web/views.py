@@ -35,13 +35,29 @@ class DataSetCreateView(LoginRequiredMixin, CreateView):
     form_class = DataSetForm
     success_url = reverse_lazy('data_sets')
 
+    def extract_columns_from_json(self, data):
+        columns = set()
+
+        def extract_keys(obj):
+            if isinstance(obj, dict):
+                for key, value in obj.items():
+                    if isinstance(value, (dict, list)):
+                        extract_keys(value)  # Explore recursively
+                    else:
+                        columns.add(key)
+            elif isinstance(obj, list) and obj:
+                extract_keys(obj[0])  # Explore the first element of the list recursively
+
+        extract_keys(data)
+
+        return sorted(list(columns))  # Sorting the columns
+
     def dispatch(self, request, *args, **kwargs):
         if 'json_file' in request.FILES:
             file = request.FILES['json_file']
             try:
                 data = json.load(file)
-                key = next(iter(data.values()), [])
-                self.columns_choices = list(key[0].keys())
+                self.columns_choices = self.extract_columns_from_json(data)
             except json.JSONDecodeError:
                 pass
 
@@ -62,6 +78,7 @@ class DataSetCreateView(LoginRequiredMixin, CreateView):
                 return HttpResponseBadRequest("No se encontraron columnas disponibles.")
         else:
             return super().post(request, *args, **kwargs)
+        
 
     max_threads = 5  # Número máximo de hilos permitidos
 

@@ -12,7 +12,6 @@ class QueryCountMiddleware:
         duration = time.time() - start_time
         query_count = len(connection.queries)
         try:
-            print("Hola")
             logging.info(
                 f"URL: {request.path}, "
                 f"Método HTTP: {request.method}, "
