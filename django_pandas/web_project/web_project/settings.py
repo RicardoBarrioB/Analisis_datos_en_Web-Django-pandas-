@@ -58,7 +58,7 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = 'web_project.urls'
 
-MEDIA_ROOT = 'C:\\sw\\repositorio\\Analisis_datos_en_Web_con_Django_Pandas\\django_pandas\\web_project'
+MEDIA_ROOT = 'C:\\sw\\repositorio\\Analisis_datos_en_Web_con_Django_Pandas\\django_pandas\\web_project\\graphics'
 MEDIA_URL = '/media/'
 STATIC_URL = '/static/'
 
